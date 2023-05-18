@@ -1,0 +1,22 @@
+body {
+    background-color: whitesmoke;
+    font-family: monospace;
+}
+
+
+.footer {
+    font-size: 12px;
+    text-align: center;
+}
+
+game {
+    max-width: 380px;
+    display: flex;
+    margin: 0 auto;
+    border: 3px solid #444;
+    padding: 15px;
+    box-sizing: border-box;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}

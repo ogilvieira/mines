@@ -1,0 +1,222 @@
+<game>
+  <h3>MINES GAME - Riot JS</h3>
+
+  <div if={!state.isStarted}>
+    <div><button onclick={ () => startGame('easy') } >EASY</button></div>
+    <div><button onclick={ () => startGame('medium') } >MEDIUM</button></div>
+    <div><button onclick={ () => startGame('hard') } >HARD</button></div>
+  </div>
+
+  <div if={state.isStarted}>
+
+    <div>Mines: {state.flagged}/{state.config.bombs}</div>
+    <div>Time: {state.timeParsed}</div>
+
+    <div>
+      <table>
+        <tr each={(row, rowIndex) in state.mapRaw}>
+          <td each={(line, lineIndex) in row} onclick={ () => revealItem(rowIndex, lineIndex)}>
+            <button if={!state.isPaused} disabled={line.show}>
+              {line.show && line.bombsArround ? (line.hasBomb ? 'x' : line.bombsArround) : (state.isGameOver && line.hasBomb) ? 'x' : '_'}
+            </button>
+            <button disabled if={state.isPaused}>_</button>
+          </td>
+        </tr>
+      </table>
+
+      <div>
+        <button disabled={state.isGameOver} onclick={() => togglePause()}>{ state.isPaused ? 'Resume' : 'Pause' }</button>
+        <button onclick={ () => resetGame() }>Start New</button>
+      </div>
+
+    </div>
+    
+
+  <div>
+
+  <script>
+    const squareObj = () => {
+        obj = {
+          bombsArround: 0,
+          hasMine: false,
+          flagged: false
+        }
+        return obj;
+    };
+
+    const createGame = (lines = 8, columns = 8, mines = 10) => {
+      const arr = Array(lines).fill(Array(columns).fill(new squareObj()));
+      return arr;
+    }
+
+    const getRandomArbitrary = (min, max) => {
+      return Math.floor(Math.random() * (max - min) + min);
+    }
+
+    const MapItem = function(i, j, minesMap, config) {
+        const obj = {
+            key: `${i}:${j}`,
+            hasBomb: !minesMap.includes(`${i}:${j}`) ? 0 : 1,
+            flagged: false,
+            show: false,
+            get vizinhos() {
+                const l = [i-1, i, i+1].filter(a => !(a < 0 || a >= config.lines) );
+                const c = [j-1, j, j+1].filter(a => !(a < 0 || a >= config.rows) );
+                const res = [];
+
+                l.forEach((line) => {
+                  c.forEach(column => !(line == i && column == j) && res.push(`${line}:${column}`));
+                });
+
+                return res;
+            },
+            get bombsArround() {
+                return this.vizinhos.reduce((acc, current) => (acc += !minesMap.includes(current) ? 0 : 1), 0)
+            },
+            toggleFlag() {
+                this.flagged = !this.flagged;
+                return this;
+            },
+            reveal(force = true, cb, onGameOver) {
+                if( this.show ){
+                    return;
+                }
+
+                if( this.flagged ){ return; }
+
+                if( !this.flagged && this.hasBomb ) {
+                    this.show = true;
+                    console.info('GAME OVER')
+                    return onGameOver();
+                }
+                if( !this.flagged && this.bombsArround) {
+                    this.show = true;
+                    return cb(this);
+                }
+                if(!this.flagged && !this.bombsArround ) {
+                    this.show = true;
+                    return cb(this);
+                }
+            }
+        };
+
+        return obj;
+    };
+
+    export default {
+      onBeforeMount() {
+        this.state = {
+          isStarted: false,
+          isGameOver: false,
+          isPaused: false,
+          config: null,
+          time: 0,
+          flagged: 0,
+          timeParsed: "00:00",
+          mapRaw: [],
+          clicks: 0
+        }
+      },
+      togglePause() {
+        this.update({
+          isPaused: !this.state.isPaused
+        });
+      },
+      resetGame() {
+
+        const confirm = window.confirm("You're have right about start again?");
+
+        if(!confirm){ return; }
+
+        if( this.timer ) { clearInterval(this.timer) }
+
+        this.update({
+          isStarted: false,
+          isGameOver: false,
+          isPaused: false,
+          config: null,
+          time: 0,
+          flagged: 0,
+          timeParsed: "00:00",
+          mapRaw: [],
+          clicks: 0
+        });
+      },
+      startGame( dificulty ) {
+        const config = {
+          'easy': {lines: 8, rows: 8, bombs: 10},
+          'medium': {lines: 16, rows: 16, bombs: 40},
+          'hard': {lines: 30, rows: 16, bombs: 99}
+        }[dificulty];
+
+
+        const minesMap = Array(config.bombs).fill('').map( () => `${getRandomArbitrary(0,config.lines)}:${getRandomArbitrary(0,config.rows)}`);
+        const mapRaw = [];
+
+        for( let i = 0; i < config.lines; i++) {
+            const arr = [];
+            for( let j = 0; j < config.rows; j++) {
+                arr.push(new MapItem(i, j, minesMap, config))
+            }
+            mapRaw.push(arr);
+        }
+
+        this.update({ 
+          isStarted: true,
+          config: config,
+          mapRaw: mapRaw
+        });
+
+        this.timer = setInterval(this.tick, 1000)
+      },
+      revealItem(i,j, force = true) {
+          if(this.state.isGameOver) { return; }
+
+          const cb = () => {};
+
+          const revealRecursive = (arr, cb) => {
+              if(!arr.length){ return cb(); }
+
+              let item = arr.pop().split(":");
+              
+              this.revealItem(item[0], item[1], false);
+
+              return revealRecursive(arr, cb);
+          }
+
+          this.state.mapRaw[i][j]
+            .reveal(
+              force, 
+              (item) => {
+                if( !item.bombsArround ){
+                    const stack = item.vizinhos;
+                    return revealRecursive(stack, cb);
+                }
+                cb();
+              }, 
+            () => {
+              alert("Game Over");
+              if( this.timer !== null ){ clearInterval(this.timer); }
+              this.update({
+                isGameOver: true
+              })
+          });
+
+          this.update({ clicks: ++this.state.clicks });
+      },
+      tick() {
+        if(this.state.isPaused){ return }
+
+        const time = this.state.time+=1000;
+        const min = parseInt(this.state.time / 60000);
+        const sec = parseInt((this.state.time - (min * 60000)) / 1000);
+
+
+        this.update({ 
+          time: time,
+          timeParsed: `${(''+min).padStart(2, '0')}:${(''+sec).padStart(2, '0')}`
+        })
+      },
+    }
+  </script>
+</game>
