@@ -1,0 +1,2 @@
+# mines
+JS Mines Game
